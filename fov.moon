@@ -116,16 +116,9 @@ sort_by_distance = (origin, points) ->
 -- print it for it in *to_raw_coordinates(to_poly(canvas))
 
 visibility_poly = (origin, polies) ->
-  -- print 'origin:'
-  -- print "#{origin.x}/#{origin.y}"
-  -- print 'polies:'
-  -- print #polies
   visible_area = {}
   rays = {}
   lines = flatten([ to_lines(poly) for poly in *polies ])
-  -- print 'lines:'
-  -- print #lines
-  -- print "#{line.a.x}/#{line.a.y}" for line in *lines
   for line in *lines
     -- set up all the light rays we'll be casting out
     -- each line end point is a start as well as an end -
@@ -134,43 +127,42 @@ visibility_poly = (origin, polies) ->
     rays[#rays + 1] = {a: origin, b: {x: line.a.x + 0.001, y: line.a.y + 0.001}}
     rays[#rays + 1] = {a: origin, b: {x: line.a.x - 0.001, y: line.a.y - 0.001}}
   
-  -- print 'line'
-    -- print "#{k}=#{v}" for k,v in pairs(line)
-    -- print "#{line.a.x}/#{line.a.y}-#{line.b.x}/#{line.b.y}"
-  -- print 'rays:'
-  -- print #rays
   for ray in *rays
-    -- print 'ray'
-    -- print "#{ray.a.x}/#{ray.a.y}-#{ray.b.x}/#{ray.b.y}"
     intersections = {}
     for line in *lines
-      -- print 'line'
-      -- print "#{line.a.x}/#{line.a.y}-#{line.b.x}/#{line.b.y}"
       intersection_near = intersection(ray, line, true)
       intersection_far = intersection(ray, line, false)
-      -- print 'intersections:'
       if intersection_near ~= nil
         intersection_near.a = ray.a
         intersection_near.b = ray.b
-        -- print "#{k}=#{v}" for k,v in pairs(intersection_near)
       if intersection_far ~= nil
         intersection_far.a = ray.a
         intersection_far.b = ray.b
-      --   print "#{k}=#{v}" for k,v in pairs(intersection_far)
-      -- todo: re-add
       intersections[#intersections + 1] = intersection_near if intersection_near ~= nil
-      -- todo: re-add
-      -- intersections[#intersections + 1] = intersection_far if intersection_far ~= nil
     sort_by_distance(origin, intersections)
     visible_area[#visible_area + 1] = intersections[1] if #intersections > 0
     intersections = {}
  
-  -- print 'visible area, before sorting'
-  -- print i, math.atan(visible_area[i].y - origin.y, visible_area[i].x - origin.x), visible_area[i].x, visible_area[i].y for i=1,#visible_area
   sort_by_angle(origin, visible_area)
-  -- print 'visible area, after sorting'
-  -- print i, math.atan(visible_area[i].y - origin.y, visible_area[i].x - origin.x), visible_area[i].x, visible_area[i].y for i=1,#visible_area
-  return visible_area
+   
+  -- and now, let's have some post-processing:
+  processed = {}
+  -- for v in *visible_area
+    -- make sure we have some proper, positive integers here =)
+    -- v.x = math.floor(v.x)
+    -- v.x = 0 if v.x < 0
+    -- v.y = math.floor(v.y)
+    -- v.y = 0 if v.y < 0
+
+  -- drop all points whose relative angle or coordinates are too
+  -- close the previous point's
+  -- compare successive points and update point of reference
+  reference = visible_area[#visible_area]
+  for i=1,#visible_area
+    if manhattan_distance(visible_area[i], reference) > 2 and pseudo_angle({x:visible_area[i].x - origin.x, y:visible_area[i].y - origin.y}) ~= pseudo_angle({x:reference.x - origin.x, y:reference.y - origin.y})
+      processed[#processed + 1] = visible_area[i]
+      reference = visible_area[i]
+  return processed
 
 -- print 'visibility poly'
 -- print 'canvas:'
@@ -220,7 +212,7 @@ love.draw = () ->
   }
   -- print screen_x, screen_y
   -- background
-  love.graphics.setColor(0.3,0.3,0.3,1)
+  love.graphics.setColor(0.2,0.2,0.2,1)
   love.graphics.polygon('fill', to_raw_coordinates(to_poly(canvas)))
   -- obstacles
   if #obstacles > 0
@@ -247,78 +239,47 @@ love.draw = () ->
     love.graphics.setColor(1,1,1,1)
     -- print 'obstacles'
     -- print #obstacles
-    tmp = {
+    sight_blockers = {
       to_poly(canvas)
     }
     for it in *obstacles
-      tmp[#tmp + 1] = it
+      sight_blockers[#sight_blockers + 1] = it
       -- for k,v in pairs(it)
       --   print "#{k}=#{v}"
-    -- for it in *tmp
+    -- for it in *sight_blockers
     --   for k,v in pairs(it)
     --     print "#{k}=#{v}"
-    -- print 'end of tmp obstacles'
-    visible_area = {}
-    if #obstacles == 0
-      visible_area = visibility_poly({x: mouse_x, y: mouse_y}, tmp)
-    else
-      visible_area = visibility_poly({x: mouse_x, y: mouse_y}, tmp)
-    for v in *visible_area
-      v.x = math.floor(v.x)
-      v.x = 0 if v.x < 0
-      v.y = math.floor(v.y)
-      v.y = 0 if v.y < 0
-    tmp = {}
-    -- for i=1,#visible_area
-    --   too_close = false
-    --   for o=1,#tmp
-    --     distance = manhattan_distance(visible_area[i], tmp[o])
-    --     if distance ~= distance or distance < 1 and i ~= o
-    --       too_close = true
-
-    --   if too_close == false
-    --     tmp[#tmp + 1] = visible_area[i]
-
-    -- compare successive points and update point of reference
-    reference = visible_area[#visible_area]
-    for i=1,#visible_area
-      -- if manhattan_distance(visible_area[i], reference) > 2
-      -- if pseudo_angle({x:visible_area[i].x - mouse_x, y:visible_area[i].y - mouse_y}) ~= pseudo_angle({x:reference.x - mouse_x, y:reference.y - mouse_y})
-      if manhattan_distance(visible_area[i], reference) > 2 and pseudo_angle({x:visible_area[i].x - mouse_x, y:visible_area[i].y - mouse_y}) ~= pseudo_angle({x:reference.x - mouse_x, y:reference.y - mouse_y})
-        tmp[#tmp + 1] = visible_area[i]
-        reference = visible_area[i]
-
-    -- only compare successive points
-    -- for i=1,#visible_area - 1
-    --   tmp[#tmp + 1] = visible_area[i] if manhattan_distance(visible_area[i], visible_area[i + 1]) > 0
-    -- tmp[#tmp + 1] = visible_area[#visible_area] if manhattan_distance(visible_area[#visible_area], visible_area[1]) > 0
-
-    -- todo: prune by angle? -> not for now
-    -- for i=1,#visible_area - 1
-    --   tmp[#tmp + 1] = visible_area[i] if pseudo_angle({x: visible_area[i].x - mouse_x, y: visible_area[i].y - mouse_y}) ~= pseudo_angle({x: visible_area[i + 1].x - mouse_x, y: visible_area[i + 1].y, mouse_y})
-    -- tmp[#tmp + 1] = visible_area[i] if pseudo_angle({x: visible_area[#visible_area].x - mouse_x, y: visible_area[#visible_area].y - mouse_y}) ~= pseudo_angle({x: visible_area[1].x - mouse_x, y: visible_area[1].y, mouse_y})
-
-    -- print #tmp
-    -- print #visible_area
-    visible_area = tmp
-    -- print 'visible area for drawing'
-    -- print i, pseudo_angle(visible_area[i]), pseudo_angle({x: visible_area[i].x - mouse_x, y: visible_area[i].y - mouse_y}), visible_area[i].x, visible_area[i].y for i=1,#visible_area
-    -- print 'is convex?', love.math.isConvex(to_raw_coordinates(visible_area))
-    -- todo: needs to be simple and convex!
-    -- love.graphics.polygon('fill', to_raw_coordinates(visible_area)) if #visible_area > 2
-    if #visible_area > 2 and mouse_x > 0 and mouse_y > 0 and mouse_x < screen_x and mouse_y < screen_y
-      ok, triangles = pcall(love.math.triangulate, to_raw_coordinates(visible_area))
-      if not ok
-        print triangles
-        print 'visible area for drawing'
-        print i, pseudo_angle(visible_area[i]), pseudo_angle({x: visible_area[i].x - mouse_x, y: visible_area[i].y - mouse_y}), visible_area[i].x, visible_area[i].y for i=1,#visible_area
-        print 'is convex?', love.math.isConvex(to_raw_coordinates(visible_area))
-        return
-      love.graphics.polygon('fill', tri) for tri in *triangles
-    love.graphics.print(i, visible_area[i].x, visible_area[i].y) for i=1,#visible_area
-    love.graphics.setColor(0.85,0.15,0.15,1)
-    love.graphics.line(mouse_x, mouse_y, point.x, point.y) for point in *visible_area
-    love.graphics.circle('fill', point.x, point.y, 4) for point in *visible_area
+    -- print 'end of sight_blockers obstacles'
+    visible_areas = {
+      visibility_poly({x: mouse_x, y: mouse_y}, sight_blockers)
+      visibility_poly({x: mouse_x + 4, y: mouse_y}, sight_blockers)
+      visibility_poly({x: mouse_x - 4, y: mouse_y}, sight_blockers)
+      visibility_poly({x: mouse_x + 4, y: mouse_y + 4}, sight_blockers)
+      visibility_poly({x: mouse_x + 4, y: mouse_y - 4}, sight_blockers)
+      visibility_poly({x: mouse_x - 4, y: mouse_y + 4}, sight_blockers)
+      visibility_poly({x: mouse_x - 4, y: mouse_y - 4}, sight_blockers)
+      visibility_poly({x: mouse_x, y: mouse_y + 4}, sight_blockers)
+      visibility_poly({x: mouse_x, y: mouse_y - 4}, sight_blockers)
+    }
+    -- visible_area = {}
+    -- visible_area = visibility_poly({x: mouse_x, y: mouse_y}, sight_blockers)
+    for visible_area in *visible_areas
+      if #visible_area > 2 and mouse_x > 0 and mouse_y > 0 and mouse_x < screen_x and mouse_y < screen_y
+        ok, triangles = pcall(love.math.triangulate, to_raw_coordinates(visible_area))
+        if not ok
+          print triangles
+          print 'visible area for drawing'
+          print i, pseudo_angle(visible_area[i]), pseudo_angle({x: visible_area[i].x - mouse_x, y: visible_area[i].y - mouse_y}), visible_area[i].x, visible_area[i].y for i=1,#visible_area
+          print 'is convex?', love.math.isConvex(to_raw_coordinates(visible_area))
+          return
+        love.graphics.setColor(1,1,1,0.15)
+        love.graphics.polygon('fill', tri) for tri in *triangles
+    if #visible_areas > 0
+      love.graphics.setColor(0,1,0,1)
+      love.graphics.print(i, visible_areas[1][i].x, visible_areas[1][i].y) for i=1,#visible_areas[1]
+      love.graphics.setColor(0.85,0.15,0.15,1)
+      love.graphics.line(mouse_x, mouse_y, point.x, point.y) for point in *visible_areas[1]
+      love.graphics.circle('fill', point.x, point.y, 4) for point in *visible_areas[1]
   -- next obstacle
   if mode == 'build' and next_obstacle ~= nil
     if #next_obstacle > 1
@@ -349,4 +310,4 @@ love.draw = () ->
   love.graphics.print(love.timer.getFPS(), 30, 30, 0, 2.5, 2.5)
 
 love.load = () ->
-  love.window.setMode(1920, 1080, {resizable:true, vsync:false, msaa:2, minwidth:400, minheight:300})
+  love.window.setMode(1920, 1080, {resizable:true, vsync:true, msaa:2, minwidth:400, minheight:300})
