@@ -3,7 +3,8 @@ export state = {}
 export obstacles = {}
 
 export point_of_view = {x:0,y:0}
-state.view_angle = 1
+alpha = math.pi
+state.view_angle = alpha
 state.view_angle_vector = {x:math.cos(state.view_angle),y:math.sin(state.view_angle)}
 state.wide_segment = {
   a: {x: state.view_angle_vector.x + 60, y: state.view_angle_vector.y + 1}

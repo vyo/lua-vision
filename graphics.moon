@@ -1,8 +1,14 @@
-require 'fov'
+-- require 'fov'
+require 'visibility'
 require 'ui'
 require 'state'
+moonshine = require 'moonshine'
+export effect
 
 love.draw = () -> 
+  effect(rawDraw)
+
+export rawDraw = () ->
   screen_x, screen_y = love.graphics.getDimensions()
   canvas = {
     -- screen borders
@@ -42,8 +48,9 @@ love.draw = () ->
       sight_blockers[#sight_blockers + 1] = it
     visible_areas = {
       -- todo: re-enable
+      visibility_poly({x: mouse_x, y: mouse_y}, state.view_angle, sight_blockers, math.rad(90))
       -- visibility_poly({x: mouse_x, y: mouse_y}, sight_blockers, copy(state.wide_segment))
-      visibility_poly({x: mouse_x, y: mouse_y}, sight_blockers, copy(state.narrow_segment))
+      -- visibility_poly({x: mouse_x, y: mouse_y}, sight_blockers, copy(state.narrow_segment))
       -- visibility_poly({x: mouse_x + 4, y: mouse_y}, sight_blockers)
       -- visibility_poly({x: mouse_x - 4, y: mouse_y}, sight_blockers)
       -- visibility_poly({x: mouse_x + 4, y: mouse_y + 4}, sight_blockers)
@@ -56,17 +63,24 @@ love.draw = () ->
     for visible_area in *visible_areas
       if #visible_area > 2 and mouse_x > 0 and mouse_y > 0 and mouse_x < screen_x and mouse_y < screen_y
         ok, triangles = pcall(love.math.triangulate, to_raw_coordinates(visible_area))
-        if not ok
+        if not ok or ok
           print triangles
           print 'visible area for drawing'
           print i, pseudo_angle(visible_area[i]), pseudo_angle({x: visible_area[i].x - mouse_x, y: visible_area[i].y - mouse_y}), visible_area[i].x, visible_area[i].y for i=1,#visible_area
           print 'is convex?', love.math.isConvex(to_raw_coordinates(visible_area))
-          return
+          return if not ok
         love.graphics.setColor(1,1,1,0.5)
         love.graphics.polygon('fill', tri) for tri in *triangles
     if #visible_areas > 0
       love.graphics.setColor(0,1,0,1)
-      love.graphics.print(i, visible_areas[1][i].x, visible_areas[1][i].y) for i=1,#visible_areas[1]
+      for i=1,#visible_areas[1]
+        x = visible_areas[1][i].x
+        y = visible_areas[1][i].y
+        x += 20 if x <= 0+20
+        x -= 20 if x >= screen_x-20
+        y += 20 if y <= 0+20
+        y -= 20 if y >= screen_y-20
+        love.graphics.print(i, x, y)
       love.graphics.setColor(0.85,0.15,0.15,1)
       love.graphics.line(mouse_x, mouse_y, point.x, point.y) for point in *visible_areas[1]
       love.graphics.circle('fill', point.x, point.y, 4) for point in *visible_areas[1]
@@ -95,5 +109,16 @@ love.draw = () ->
   ui.fov({angle: state.view_angle})
 
 love.load = () ->
+  effect = with moonshine(moonshine.effects.glow)
+    .chain(moonshine.effects.godsray)
+    .chain(moonshine.effects.fastgaussianblur)
+    .chain(moonshine.effects.desaturate)
+    .chain(moonshine.effects.vignette)
+    .chain(moonshine.effects.filmgrain)
+  effect.disable("glow", "fastgaussianblur", "godsray", "desaturate")
+  effect.enable("glow")
+  effect.filmgrain.size = 2
+  love.graphics.setNewFont(20)
   love.window.setMode(640, 480, {resizable:true, vsync:true, msaa:2, minwidth:400, minheight:300})
+  love.window.setTitle('luavision')
 
